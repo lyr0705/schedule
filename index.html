@@ -19,6 +19,8 @@ h1{margin:0;font-size:24px;letter-spacing:-.02em}
 .status.err{color:var(--danger)}
 .who{font-size:12px;padding:4px 10px;border-radius:999px;background:#eef2fb;color:#2b4a9c}
 .who.ro{background:#f3f4f6;color:var(--sub)}
+button.who{border:0;cursor:pointer;font:inherit;font-size:12px}button.who:hover{filter:brightness(.96)}
+.codein{font-size:22px;letter-spacing:.3em;text-align:center;font-family:ui-monospace,Menlo,Consolas,monospace}
 .bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:12px}
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
 .seg button{border:0;background:#fff;padding:7px 14px;cursor:pointer}
@@ -223,7 +225,8 @@ function renderMain(){
   if(S.view==='month'){label=`${d.getFullYear()}년 ${d.getMonth()+1}월`;body=S.monthMode==='table'?renderTable(monthDays()):renderGrid()}
   else if(S.view==='week'){const s=monStart(d),e=addDays(s,6);label=`${s.getMonth()+1}.${s.getDate()} ~ ${e.getMonth()+1}.${e.getDate()} (${weekNo(s)})`;body=renderTable(weekDays(),true)}
   else{const y=schoolYearOf(d);label=S.yearMode==='cal'?`${y}년`:`${y}학년도 (${y}.3 ~ ${y+1}.2)`;body=renderYear()}
-  const who=P.live&&P.role?`<span class="who ${P.canWrite?'':'ro'}">${esc((P.me&&P.me.name)||'나')} · ${esc(P.role)}</span>`:'';
+  const who=P.live&&P.role?`<span class="who ${P.canWrite?'':'ro'}">${esc((P.me&&P.me.name)||'나')} · ${esc(P.role)}</span>`
+    :(!db&&gsUrl())?(editCode()?`<button class="who" data-act="lock" title="이 기기에서 편집 잠그기">🔓 편집 가능 · 잠그기</button>`:`<button class="who ro" data-act="unlock" title="편집 코드 입력">🔒 보기 전용 · 편집 코드 입력</button>`):'';
   $main.innerHTML=`<div class="wrap">
   <header class="top"><div><div class="school">${S.view==='month'?'월간':S.view==='week'?'주간':'연간'} 일정</div><h1>${titleHtml()}</h1></div>
   <div class="row"><span class="status ${statusErr?'err':''}">${esc(statusMsg)}</span>${who}<button class="btn primary edit-only" data-act="addtop">+ 행사 추가</button><button class="btn" data-act="print">🖨 A4 인쇄</button><button class="btn" data-act="sheets">📊 구글 시트</button><button class="btn" data-act="settings">⚙ 설정</button>${installEvt?'<button class="btn" data-act="install">📲 앱 설치</button>':''}</div></header>
@@ -324,6 +327,7 @@ function renderOverlay(){
   else if(S.modal==='import')h=renderImport();
   else if(S.modal==='print')h=renderPrint();
   else if(S.modal==='sheets')h=renderSheets();
+  else if(S.modal==='code')h=renderCode();
   $ov.innerHTML=h;
   if(S._focusSel){const f=$ov.querySelector(S._focusSel);if(f){f.focus();if(f.setSelectionRange&&f.value!=null)try{f.setSelectionRange(f.value.length,f.value.length)}catch(e){}}S._focusSel=null}
 }
@@ -774,13 +778,16 @@ function renderSheets(){
     main=`<h4>구글 시트를 공유 저장소로 연결 ${url?'<span class="tag">연결됨</span>':''}</h4>
     ${url?`<div class="box" style="font-size:13px">일정이 구글 시트에 저장되고, 같은 주소로 연 사람 모두 같은 일정을 봅니다(30초마다 새로 고침).<br>시트에서 직접 고친 내용도 앱에 반영됩니다.
       <div class="row" style="margin-top:8px">${S.sheetUrl?`<a class="btn sm" href="${esc(S.sheetUrl)}" target="_blank" rel="noopener">스프레드시트 열기</a>`:''}<button class="btn sm" data-act="gsreload">지금 새로 고침</button><button class="btn sm" data-act="gspush">이 브라우저의 일정 모두 시트로 올리기</button><button class="btn sm danger" data-act="gsoff">연결 끊기</button></div>
-      ${location.protocol.startsWith('http')?`<div style="margin-top:10px"><b>동료에게 보낼 링크</b> <span class="hint">— 이 링크로 열면 같은 시트에 바로 연결됩니다</span><div class="row" style="margin-top:4px"><input class="inp mono" style="flex:1;width:auto" readonly value="${esc(shareLink())}"><button class="btn sm" data-act="copyshare">복사</button></div></div>`:''}</div>`
+      <div style="margin-top:10px"><b>편집 코드</b> <span class="hint">— 링크로 들어온 사람은 보기만 되고, 코드를 넣어야 고칠 수 있습니다</span>
+      <div class="row" style="margin-top:4px">${editCode()?'<span class="tag">이 기기: 편집 가능</span><button class="btn sm" data-act="lock">이 기기에서 잠그기</button>':'<span class="tag" style="background:#f3f4f6;color:#555">이 기기: 보기 전용</span><button class="btn sm" data-act="unlock">코드 입력</button>'}<button class="btn sm" data-act="ccopen">코드 바꾸기</button></div>
+      ${S.sh.ccOpen?`<div class="row" style="margin-top:6px"><input id="ccCur" class="inp" style="width:120px" type="password" placeholder="현재 코드" autocomplete="off"><input id="ccNew" class="inp" style="width:120px" type="password" placeholder="새 코드" autocomplete="new-password"><input id="ccNew2" class="inp" style="width:120px" type="password" placeholder="새 코드 확인" autocomplete="new-password"><button class="btn sm primary" data-act="ccdo">바꾸기</button></div>`:''}</div>
+      ${location.protocol.startsWith('http')?`<div style="margin-top:10px"><b>동료에게 보낼 링크</b> <span class="hint">— 이 링크로 열면 같은 시트에 바로 연결됩니다. 편집 코드는 링크와 따로 알려 주세요</span><div class="row" style="margin-top:4px"><input class="inp mono" style="flex:1;width:auto" readonly value="${esc(shareLink())}"><button class="btn sm" data-act="copyshare">복사</button></div></div>`:''}</div>`
     :`<ol class="steps"><li>새 구글 스프레드시트를 만들고 메뉴 <b>확장 프로그램 › Apps Script</b>를 엽니다.</li>
       <li>앱과 함께 받은 <span class="mono">Code.gs</span> 내용을 통째로 붙여넣고 저장합니다.</li>
       <li><b>배포 › 새 배포 › 유형: 웹 앱</b>, 실행: <b>나</b>, 액세스: <b>모든 사용자</b>로 배포하고 권한을 허용합니다.</li>
       <li>나온 <b>웹 앱 URL</b>(…/exec)을 아래에 붙여넣고 연결합니다.</li></ol>
       <div class="row" style="margin-top:8px"><input class="inp" style="flex:1;width:auto" id="gsUrlIn" placeholder="https://script.google.com/macros/s/…/exec"><button class="btn primary" data-act="gson">연결</button></div>
-      <p class="hint">연결하면 이 브라우저에 있던 일정을 시트로 올릴지 묻습니다. 주소를 아는 사람은 누구나 편집할 수 있으니 주소는 교직원·직원끼리만 공유하세요.</p>`}`;
+      <p class="hint">링크로 들어온 사람은 일정을 보기만 할 수 있고, 추가·수정·삭제는 <b>편집 코드</b>를 아는 사람만 할 수 있습니다(처음 코드: Code.gs에 적힌 값).</p>`}`;
   }
   return `<div class="scrim" data-act="closebg"><div class="modal wide" role="dialog" aria-label="구글 시트"><h2>📊 구글 시트</h2>${scope}${main}
   <h4>파일로 받기</h4><div class="row"><button class="btn" data-act="shxlsx">엑셀(.xlsx) 받기</button><button class="btn" data-act="shcsv">CSV 받기</button></div>
@@ -833,6 +840,32 @@ async function gsLoad(quiet){
   }catch(e){setStatus('구글 시트에 연결하지 못했습니다 — 주소와 배포 설정을 확인해 주세요',true);return false}
 }
 function gsStartPolling(){clearInterval(gsTimer);gsTimer=setInterval(()=>{if(document.visibilityState==='visible')gsLoad(true)},30000)}
+const CODEKEY='school-cal-edit-code';
+const editCode=()=>{try{return localStorage.getItem(CODEKEY)||''}catch(e){return''}};
+const setEditCode=v=>{try{v?localStorage.setItem(CODEKEY,v):localStorage.removeItem(CODEKEY)}catch(e){}};
+const needsCode=()=>!db&&!!gsUrl()&&!editCode();
+const EDIT_ACTS=new Set(['add','addtop','edit','dup','del','ttledit','savesettings','clearsample','gspush','impdo','undo']);
+function codeMsg(m){return({bad_code:'편집 코드가 맞지 않습니다.',locked:'코드를 여러 번 틀려 10분 동안 잠겼습니다. 잠시 후 다시 시도해 주세요.',weak_code:'새 코드는 4~32자로 정해 주세요.',invalid:'입력 내용이 올바르지 않습니다.','Failed to fetch':'인터넷 연결 또는 시트 주소를 확인해 주세요.'})[m]||m}
+function askCode(cb){S.codeCb=cb;S.codePrev=S.modal==='code'?S.codePrev:S.modal;S.codeErr='';S.codeBusy=false;S.modal='code';S._focusSel='#codeIn';renderOverlay()}
+function renderCode(){
+  return `<div class="scrim" data-act="closebg"><div class="modal" style="max-width:400px" role="dialog" aria-label="편집 코드"><h2>🔒 편집 코드 입력</h2>
+  <p class="hint" style="margin-top:0">일정을 추가·수정·삭제하려면 편집 코드가 필요합니다. 한 번 입력하면 이 기기에서는 다시 묻지 않습니다.</p>
+  <input id="codeIn" class="inp codein" type="password" inputmode="numeric" autocomplete="off" maxlength="32" placeholder="••••••">
+  ${S.codeErr?`<p class="hint" style="color:var(--danger)">${esc(S.codeErr)}</p>`:''}
+  <div class="row right" style="margin-top:14px"><button class="btn" data-act="codecancel">취소</button><button class="btn primary" data-act="codeok" ${S.codeBusy?'disabled':''}>${S.codeBusy?'확인 중…':'확인'}</button></div></div></div>`;
+}
+async function submitCode(){
+  const el=document.getElementById('codeIn'),v=(el&&el.value||'').trim();if(!v){S.codeErr='코드를 입력해 주세요.';renderOverlay();return}
+  S.codeBusy=true;S.codeErr='';renderOverlay();
+  try{await gsPost({action:'auth',code:v});setEditCode(v);const cb=S.codeCb;S.codeCb=null;S.modal=S.codePrev||null;S.codePrev=null;S.codeBusy=false;renderOverlay();renderMain();toast('편집할 수 있습니다');if(cb)cb()}
+  catch(e){S.codeBusy=false;S.codeErr=codeMsg(String(e.message||e));S._focusSel='#codeIn';renderOverlay()}
+}
+async function changeCode(){
+  const g=id=>(document.getElementById(id)||{}).value||'';const cur=g('ccCur').trim(),n1=g('ccNew').trim(),n2=g('ccNew2').trim();
+  if(!cur||!n1){toast('현재 코드와 새 코드를 입력해 주세요');return}if(n1!==n2){toast('새 코드가 서로 다릅니다');return}if(n1.length<4){toast('새 코드는 4자 이상으로 정해 주세요');return}
+  try{await gsPost({action:'setcode',code:cur,newCode:n1});setEditCode(n1);S.sh.ccOpen=false;toast('편집 코드를 바꿨습니다 — 다른 사람들은 새 코드를 입력해야 합니다');renderOverlay();renderMain()}
+  catch(e){toast(codeMsg(String(e.message||e)))}
+}
 async function gsPost(body){
   const r=await fetch(gsUrl(),{method:'POST',body:JSON.stringify(body)});const j=await r.json();if(!j.ok)throw new Error(j.error||'저장 실패');return j;
 }
@@ -845,9 +878,12 @@ function persist({put=[],del=[],config=false}){
   const ds=new Set(del),pm=new Map(put.map(e=>[e.id,e]));
   data.events=data.events.filter(e=>!ds.has(e.id)&&!pm.has(e.id)).concat(put);
   if(!db&&gsUrl()){
-    saveLocal();const body={action:'sync',put,del};if(config)body.config=cfgBody();
+    saveLocal();const body={action:'sync',code:editCode(),put,del};if(config)body.config=cfgBody();
     pendingWrites++;setStatus('구글 시트에 저장 중…');
-    writeQ=writeQ.then(()=>gsPost(body)).then(()=>{pendingWrites--;if(!pendingWrites){statusErr=false;setStatus('구글 시트에 저장됨')}},e=>{pendingWrites--;setStatus('구글 시트 저장 실패 — 인터넷 연결을 확인해 주세요 ('+(e.message||e)+')',true)});
+    writeQ=writeQ.then(()=>gsPost(body)).then(()=>{pendingWrites--;if(!pendingWrites){statusErr=false;setStatus('구글 시트에 저장됨')}},e=>{pendingWrites--;
+      const m=String(e.message||e);
+      if(m==='bad_code'||m==='locked'){setEditCode('');const msg=m==='locked'?'편집 코드를 여러 번 틀려 10분간 잠겼습니다 — 저장되지 않았습니다':'편집 코드가 바뀌어 저장되지 않았습니다 — 코드를 다시 입력해 주세요';toast(msg);gsLoad(true).then(()=>{setStatus(msg,true);renderMain()})}
+      else setStatus('구글 시트 저장 실패 — '+codeMsg(m),true)});
     return;
   }
   if(!db){saveLocal();setStatus('이 브라우저에 저장됨');return}
@@ -905,7 +941,11 @@ async function loadPerm(){
 /* ---------- 이벤트 ---------- */
 document.addEventListener('click',ev=>{
   const t=ev.target.closest('[data-act]');if(!t)return;const a=t.dataset.act;
-  if(a==='closebg'){if(ev.target===t)closeModal();return}
+  if(a==='closebg'){if(ev.target===t){if(S.modal==='code'){S.modal=S.codePrev||null;S.codePrev=null;S.codeCb=null;renderOverlay()}else closeModal()}return}
+  if(EDIT_ACTS.has(a)&&needsCode()){askCode(()=>doAct(t,a));return}
+  doAct(t,a);
+});
+function doAct(t,a){
   const e=t.dataset.id?data.events.find(x=>x.id===t.dataset.id):null;
   switch(a){
   case'view':{const now=new Date();
@@ -942,10 +982,17 @@ document.addEventListener('click',ev=>{
     const local=data.events.slice(),cfg=cfgBody();try{localStorage.setItem(GSKEY,v)}catch(e){}
     gsLoad().then(ok=>{if(!ok){try{localStorage.removeItem(GSKEY)}catch(e){};renderOverlay();return}
       gsStartPolling();const have=new Set(data.events.map(e=>e.id)),up=local.filter(e=>!have.has(e.id));
-      if(up.length&&!data.events.length){persist({put:up,config:true});toast(`연결했습니다 — 이 브라우저의 일정 ${up.length}건을 시트로 올렸습니다`)}
-      else if(!data.events.length&&!up.length){data.schoolName=data.schoolName||cfg.schoolName;persist({config:true});toast('연결했습니다')}
+      const gate=f=>needsCode()?askCode(f):f();
+      if(up.length&&!data.events.length){toast('연결했습니다 — 이 브라우저의 일정을 올리려면 편집 코드를 입력하세요');gate(()=>{persist({put:up,config:true});toast(`이 브라우저의 일정 ${up.length}건을 시트로 올렸습니다`)})}
+      else if(!data.events.length&&!up.length){toast('연결했습니다');if(cfg.schoolName&&!data.schoolName){data.schoolName=cfg.schoolName;gate(()=>persist({config:true}))}}
       else toast(`연결했습니다 — 시트의 일정 ${data.events.length}건을 불러왔습니다`+(up.length?` (이 브라우저에만 있던 ${up.length}건은 '모두 시트로 올리기'로 올릴 수 있어요)`:''));
       S._localOnly=up;renderOverlay()});break}
+  case'lock':setEditCode('');toast('이 기기에서 편집을 잠갔습니다');renderMain();if(S.modal==='sheets')renderOverlay();break;
+  case'unlock':askCode(()=>{});break;
+  case'codeok':submitCode();break;
+  case'codecancel':S.modal=S.codePrev||null;S.codePrev=null;S.codeCb=null;renderOverlay();break;
+  case'ccopen':S.sh.ccOpen=!S.sh.ccOpen;S._focusSel='#ccCur';renderOverlay();break;
+  case'ccdo':changeCode();break;
   case'copyshare':navigator.clipboard.writeText(shareLink()).then(()=>toast('링크를 복사했습니다'),()=>toast('복사하지 못했습니다 — 칸을 눌러 직접 복사해 주세요'));break;
   case'gsreload':gsLoad().then(()=>toast('새로 고쳤습니다'));break;
   case'gspush':{let local=[];try{local=(JSON.parse(localStorage.getItem(LSKEY)||'null')||{}).events||[]}catch(e){}
@@ -970,13 +1017,13 @@ document.addEventListener('click',ev=>{
   case'print':openPrint();break;
   case'prlayout':S.pr.layout=t.dataset.v;renderOverlay();break;
   case'prdl':{const labs=String(S.pr.appr||'').split(/[,，]/).map(s=>s.trim()).filter(Boolean);
-    if(P.canWrite&&labs.join()!==(data.print.approvals||[]).join()){data.print.approvals=labs;persist({config:true})}
+    if(P.canWrite&&!needsCode()&&labs.join()!==(data.print.approvals||[]).join()){data.print.approvals=labs;persist({config:true})}
     const ms=prMonths();saveFile(`${fileBase()}_${ms[0].getFullYear()}-${pad(ms[0].getMonth()+1)}${ms.length>1?'_'+ms.length+'개월':''}_A4가로.html`,printDoc(),'인쇄용 파일을 저장했습니다 — 열면 인쇄 창이 뜹니다');break}
   }
-});
+}
 function blankEv(ds){return{id:uid(),date:ds,end:'',cat:'',title:'',time:'',place:'',owner:'',note:''}}
 function closeModal(){S.modal=null;S.ev=null;S.wk=null;S.imp=null;renderOverlay()}
-document.addEventListener('dblclick',ev=>{const tr=ev.target.closest('tr[data-id]');if(!tr||!P.canWrite||ev.target.closest('button'))return;const e=data.events.find(x=>x.id===tr.dataset.id);if(e)openEvent(e,false)});
+document.addEventListener('dblclick',ev=>{const tr=ev.target.closest('tr[data-id]');if(!tr||!P.canWrite||ev.target.closest('button'))return;const e=data.events.find(x=>x.id===tr.dataset.id);if(e&&needsCode()){askCode(()=>openEvent(e,false));return}if(e)openEvent(e,false)});
 document.addEventListener('input',ev=>{
   const t=ev.target,ds=t.dataset;
   if(ds.act==='q'){S.q=t.value;if(ev.isComposing)return;S._focusQ=true;renderMain();return}
@@ -1012,7 +1059,9 @@ document.addEventListener('change',async ev=>{
   if(t.id==='evFile'&&t.files[0]){const f=t.files[0];try{const r=await readRows(f);if(r.json){importBackup(r.json);return}if(!r.rows.length)throw new Error('빈 파일입니다');startImport(f.name,r.rows)}catch(e){toast(e.message||'파일을 읽을 수 없습니다')}return}
 });
 document.addEventListener('keydown',ev=>{
+  if(ev.target.id==='codeIn'&&ev.key==='Enter'){ev.preventDefault();submitCode();return}
   if(ev.target.id==='ttlInput'&&!ev.isComposing){if(ev.key==='Enter'){ev.preventDefault();saveTitle(ev.target.value);return}if(ev.key==='Escape'){S.editTitle=false;renderMain();return}}
+  if(ev.key==='Escape'&&S.modal==='code'){S.modal=S.codePrev||null;S.codePrev=null;S.codeCb=null;renderOverlay();return}
   if(ev.key==='Escape'&&S.modal){closeModal();return}
   if(ev.key==='Enter'&&S.modal==='event'&&!ev.isComposing&&ev.target.matches('[data-ev]:not(textarea)')){ev.preventDefault();const f=ev.target;S.ev[f.dataset.ev]=f.value;saveEvent()}
 });
